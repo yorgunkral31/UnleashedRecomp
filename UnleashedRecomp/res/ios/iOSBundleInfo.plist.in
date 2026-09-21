@@ -28,6 +28,8 @@
         <string>Unleashed Recompiled</string>
         <key>CFBundleIconName</key>
         <string>AppIcon</string>
+        <key>CADisableMinimumFrameDurationOnPhone</key>
+        <true/>
         <key>UIFileSharingEnabled</key>
         <true />
         <key>LSSupportsOpeningDocumentsInPlace</key>
