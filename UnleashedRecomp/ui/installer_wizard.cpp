@@ -1,6 +1,11 @@
 #include "installer_wizard.h"
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+#if !TARGET_OS_IPHONE
 #include <nfd.h>
+#endif
 
 #include <apu/embedded_player.h>
 #include <install/installer.h>
@@ -1083,6 +1088,7 @@ static void DrawProgressBar(float progressRatio)
     drawList->AddRectFilledMultiColor(sliderMin, sliderMax, sliderColor0, sliderColor0, sliderColor1, sliderColor1);
 }
 
+#if !TARGET_OS_IPHONE
 static bool ConvertPathSet(const nfdpathset_t *pathSet, std::list<std::filesystem::path> &filePaths)
 {
     nfdpathsetsize_t pathSetCount = 0;
@@ -1132,6 +1138,14 @@ static void PickerThreadProcess()
 
     g_currentPickerResultsReady = true;
 }
+#else
+static void PickerThreadProcess()
+{
+    // NFD has no iOS backend; files are added through the app's Documents folder via the Files app.
+    g_currentPickerErrorMessage = "The file picker is not available on iOS. Copy your game files into this app's Documents folder using the Files app.";
+    g_currentPickerResultsReady = true;
+}
+#endif
 
 static void PickerStart(bool folderMode) {
     if (g_currentPickerThread != nullptr)
@@ -1849,7 +1863,9 @@ bool InstallerWizard::Run(std::filesystem::path installPath, bool skipGame)
     g_installPath = installPath;
 
     EmbeddedPlayer::Init();
+#if !TARGET_OS_IPHONE
     NFD_Init();
+#endif
 
     // Guarantee one controller is initialized. We'll rely on SDL's event loop to get the controller events.
     XAMINPUT_STATE inputState;
@@ -1880,7 +1896,9 @@ bool InstallerWizard::Run(std::filesystem::path installPath, bool skipGame)
     }
 
     GameWindow::SetFullscreenCursorVisibility(false);
+#if !TARGET_OS_IPHONE
     NFD_Quit();
+#endif
 
     InstallerWizard::Shutdown();
     EmbeddedPlayer::Shutdown();
