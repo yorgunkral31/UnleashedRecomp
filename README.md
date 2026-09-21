@@ -5,14 +5,14 @@
 ---
 
 > [!IMPORTANT]
-> ## 🍎 Unofficial macOS Builds (Apple Silicon, Native Metal)
-> This fork publishes **unofficial macOS builds** of Unleashed Recompiled using the **native Metal rendering backend** from [hedge-dev/UnleashedRecomp#1648](https://github.com/hedge-dev/UnleashedRecomp/pull/1648) by [@squidbus](https://github.com/squidbus) — no MoltenVK translation layer, Metal by default.
+> ## 🍎 Unofficial macOS & iOS Builds (Native Metal)
+> This fork publishes **unofficial Apple-platform builds** of Unleashed Recompiled using the **native Metal rendering backend** from [hedge-dev/UnleashedRecomp#1648](https://github.com/hedge-dev/UnleashedRecomp/pull/1648) by [@squidbus](https://github.com/squidbus) — no MoltenVK translation layer, Metal by default.
 >
-> **[⬇️ Download the latest macOS build from Releases](https://github.com/yorgunkral31/UnleashedRecomp/releases/latest)**
+> **[⬇️ macOS build (Apple Silicon)](https://github.com/yorgunkral31/UnleashedRecomp/releases/tag/metal-20260920)** — M1+, macOS 15+ recommended
 >
-> Requirements: Apple Silicon Mac (M1+), macOS 15+ recommended, and your own legally dumped copy of the game — **no game files are included**. Install notes (Gatekeeper etc.) are in the release description.
+> **[📱 iOS build (experimental IPA for sideloading)](https://github.com/yorgunkral31/UnleashedRecomp/releases/tag/ios-20260921)** — iPhone 15 Pro / 16 series or newer (A17 Pro+), up to 120 FPS on ProMotion; based on the iOS port ([#1767](https://github.com/hedge-dev/UnleashedRecomp/pull/1767)) by [@Markos-Th09](https://github.com/Markos-Th09) plus this fork's fixes ([`ios` branch](https://github.com/yorgunkral31/UnleashedRecomp/tree/ios))
 >
-> Work on an experimental **iOS port** (based on [#1767](https://github.com/hedge-dev/UnleashedRecomp/pull/1767)) lives in the [`ios` branch](https://github.com/yorgunkral31/UnleashedRecomp/tree/ios). Upstream project: [hedge-dev/UnleashedRecomp](https://github.com/hedge-dev/UnleashedRecomp).
+> You must provide **your own legally dumped copy of the game** — no game files are included. Install notes are in each release's description. Upstream project: [hedge-dev/UnleashedRecomp](https://github.com/hedge-dev/UnleashedRecomp).
 
 ---
 
