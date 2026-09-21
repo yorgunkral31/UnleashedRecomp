@@ -4,6 +4,18 @@
 
 ---
 
+> [!IMPORTANT]
+> ## 🍎 Unofficial macOS Builds (Apple Silicon, Native Metal)
+> This fork publishes **unofficial macOS builds** of Unleashed Recompiled using the **native Metal rendering backend** from [hedge-dev/UnleashedRecomp#1648](https://github.com/hedge-dev/UnleashedRecomp/pull/1648) by [@squidbus](https://github.com/squidbus) — no MoltenVK translation layer, Metal by default.
+>
+> **[⬇️ Download the latest macOS build from Releases](https://github.com/yorgunkral31/UnleashedRecomp/releases/latest)**
+>
+> Requirements: Apple Silicon Mac (M1+), macOS 15+ recommended, and your own legally dumped copy of the game — **no game files are included**. Install notes (Gatekeeper etc.) are in the release description.
+>
+> Work on an experimental **iOS port** (based on [#1767](https://github.com/hedge-dev/UnleashedRecomp/pull/1767)) lives in the [`ios` branch](https://github.com/yorgunkral31/UnleashedRecomp/tree/ios). Upstream project: [hedge-dev/UnleashedRecomp](https://github.com/hedge-dev/UnleashedRecomp).
+
+---
+
 Unleashed Recompiled is an unofficial PC port of the Xbox 360 version of Sonic Unleashed created through the process of static recompilation. The port offers Windows and Linux support with numerous built-in enhancements such as high resolutions, ultrawide support, high frame rates, improved performance and modding.
 
 **This project does not include any game assets. You must provide the files from your own legally acquired copy of the game to install or build Unleashed Recompiled.**
