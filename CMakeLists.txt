@@ -45,6 +45,13 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_definitions(_DEBUG)
 endif()
 
+# The conservative guest synchronization paths (mutex/condition_variable) are
+# required on iOS: the atomic-wait implementation deadlocks under the iOS
+# scheduler. The define was previously carried by the removed iOS launcher target.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    add_compile_definitions(UNLEASHED_RECOMP_IOS_LAUNCHER)
+endif()
+
 add_subdirectory(${UNLEASHED_RECOMP_THIRDPARTY_ROOT})
 add_subdirectory(${UNLEASHED_RECOMP_TOOLS_ROOT})
 
