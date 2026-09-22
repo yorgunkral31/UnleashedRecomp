@@ -766,6 +766,7 @@ static void DestructTempResources()
 static std::thread::id g_presentThreadId = std::this_thread::get_id();
 static std::atomic<bool> g_readyForCommands;
 static std::atomic<bool> g_appSuspended = false;
+static std::atomic<bool> g_renderThreadParked = false;
 
 PPC_FUNC_IMPL(__imp__sub_824ECA00);
 PPC_FUNC(sub_824ECA00)
@@ -1574,6 +1575,14 @@ static void CreateImGuiBackend()
 
 static void CheckSwapChain()
 {
+    // Never touch the swap chain while suspended: the layer's drawables are
+    // invalid and acquiring would block or fail.
+    if (g_appSuspended.load(std::memory_order_acquire))
+    {
+        g_swapChainValid = false;
+        return;
+    }
+
     g_swapChain->setVsyncEnabled(Config::VSync);
     g_swapChainValid &= !g_swapChain->needsResize();
 
@@ -1675,7 +1684,12 @@ static void BeginCommandList()
     commandList->setGraphicsDescriptorSet(g_samplerDescriptorSet.get(), 3);
 
     if (g_appSuspended.load(std::memory_order_relaxed)) {
+        g_renderThreadParked.store(true, std::memory_order_release);
+        g_renderThreadParked.notify_all();
         g_appSuspended.wait(true, std::memory_order_acquire);
+        g_renderThreadParked.store(false, std::memory_order_release);
+        // The swap chain generation is stale after a suspend; force a resize and reacquire.
+        g_swapChainValid = false;
     }
 
     g_readyForCommands = true;
@@ -2853,6 +2867,13 @@ void Video::HandleApplicationBackgroundState(bool isBackgrounded)
     {
         g_appSuspended.store(true, std::memory_order_release);
         g_readyForCommands.store(false, std::memory_order_release);
+
+        // Wait (bounded) for the render thread to finish its in-flight frame and
+        // reach the park point: a frame past the park check would otherwise present
+        // after this handler runs and overwrite the swap chain invalidation below.
+        for (uint32_t i = 0; i < 500 && !g_renderThreadParked.load(std::memory_order_acquire); i++)
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
         g_pendingWaitOnSwapChain = false;
         g_swapChainValid = false;
         g_dirtyStates.viewport = true;
