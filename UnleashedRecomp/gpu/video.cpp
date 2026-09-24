@@ -768,6 +768,7 @@ static std::atomic<bool> g_readyForCommands;
 static std::atomic<bool> g_appSuspended = false;
 static std::atomic<bool> g_renderThreadParked = false;
 static bool g_pendingWaitOnSwapChain = true;
+static bool g_skipNextSwapChainDrain = false;
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -1617,7 +1618,10 @@ static void CheckSwapChain()
 
     if (!g_swapChainValid)
     {
-        Video::WaitForGPU();
+        if (g_skipNextSwapChainDrain)
+            g_skipNextSwapChainDrain = false;
+        else
+            Video::WaitForGPU();
         g_backBuffer->framebuffers.clear();
         g_swapChainValid = g_swapChain->resize();
         g_needsResize = g_swapChainValid;
@@ -1747,8 +1751,13 @@ static void BeginCommandList()
         while (g_appSuspended.load(std::memory_order_acquire))
             CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.25, true);
         // First frame after resume: force a resize so the stale drawable
-        // generation is dropped and reacquired.
+        // generation is dropped and reacquired. The GPU was already drained on
+        // the way into the suspend and nothing touched it while idling, so the
+        // resize must not drain again: at this point a freshly queued command
+        // list may not have reached the executor yet, and waiting on its fence
+        // here deadlocks the resume frame.
         g_swapChainValid = false;
+        g_skipNextSwapChainDrain = true;
         SuspendTrace("RT: resumed");
         g_traceSwapChain.store(true, std::memory_order_release);
 #endif
