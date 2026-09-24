@@ -2919,7 +2919,14 @@ void Video::HandleApplicationBackgroundState(bool isBackgrounded)
     {
         SuspendTrace("BG: begin");
         g_appSuspended.store(true, std::memory_order_release);
-        g_readyForCommands.store(false, std::memory_order_release);
+
+        // Deliberately leave g_readyForCommands alone: the guest thread waits on
+        // g_executedCommandList for the executor to drain its queued frame, so
+        // stopping the executor here strands the guest thread in an atomic wait
+        // it can never leave (and on iOS that thread is the UIKit main thread).
+        // Present itself is already gated by the swap chain invalidation below;
+        // the drained frames simply render nowhere, and the guest thread then
+        // idles in the runloop wait until the app returns to the foreground.
 
         // No handshake is needed: on iOS this handler, the guest render loop and
         // every present run on the same (main) thread, so nothing can straddle
