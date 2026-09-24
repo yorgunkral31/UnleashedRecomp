@@ -772,6 +772,7 @@ static std::atomic<bool> g_renderThreadParked = false;
 #include <TargetConditionals.h>
 #endif
 #if TARGET_OS_IPHONE
+#include <CoreFoundation/CoreFoundation.h>
 static std::atomic<bool> g_traceSwapChain = false;
 
 // Temporary diagnostics for the suspend/resume investigation: appends to a file
@@ -1723,20 +1724,22 @@ static void BeginCommandList()
     commandList->setGraphicsDescriptorSet(g_samplerDescriptorSet.get(), 3);
 
     if (g_appSuspended.load(std::memory_order_relaxed)) {
-        // The guest render loop runs on the UIKit main thread on iOS, so blocking
-        // here would also block the runloop that delivers the foreground
-        // notification — the app could then never wake. Skip frames instead of
-        // parking; the swap chain stays invalid until the suspend flag clears.
         g_swapChainValid = false;
-        if (!g_renderThreadParked.exchange(true, std::memory_order_acq_rel))
-            SuspendTrace("RT: skipping frames (suspended)");
-    }
-    else if (g_renderThreadParked.exchange(false, std::memory_order_acq_rel)) {
+#if TARGET_OS_IPHONE
+        // The guest render loop runs on the UIKit main thread. While suspended,
+        // main must neither keep running guest code (the background scene-update
+        // transaction starves and the watchdog kills the app) nor block on a
+        // bare wait (the runloop starves and the wake-up notification can never
+        // be delivered). It has to sit inside the runloop, so the system can
+        // service its transactions, cleanly suspend the process, and deliver
+        // the foreground notification that clears the flag on resume.
+        SuspendTrace("RT: entering runloop wait");
+        while (g_appSuspended.load(std::memory_order_acquire))
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.25, true);
         // First frame after resume: force a resize so the stale drawable
         // generation is dropped and reacquired.
         g_swapChainValid = false;
         SuspendTrace("RT: resumed");
-#if TARGET_OS_IPHONE
         g_traceSwapChain.store(true, std::memory_order_release);
 #endif
     }
