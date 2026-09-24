@@ -2983,7 +2983,21 @@ void Video::Present()
         g_shouldPrecompilePipelines = false;
     }
 
+#if TARGET_OS_IPHONE
+    // This wait runs on the UIKit main thread. If the executor stalls around a
+    // suspend, a bare atomic wait would leave the runloop unserviced and the
+    // background scene-update watchdog kills the app — so while suspended,
+    // service the runloop between checks instead of sleeping blind.
+    while (!g_executedCommandList.load(std::memory_order_acquire))
+    {
+        if (g_appSuspended.load(std::memory_order_acquire))
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.25, true);
+        else
+            g_executedCommandList.wait(false);
+    }
+#else
     g_executedCommandList.wait(false);
+#endif
     g_executedCommandList = false;
 
     if (g_swapChainValid)
