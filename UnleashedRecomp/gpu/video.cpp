@@ -769,6 +769,7 @@ static std::atomic<bool> g_appSuspended = false;
 static std::atomic<bool> g_renderThreadParked = false;
 static bool g_pendingWaitOnSwapChain = true;
 static bool g_skipNextSwapChainDrain = false;
+static std::atomic<uint32_t> g_resumeFenceGrace = 0;
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -1758,6 +1759,10 @@ static void BeginCommandList()
         // here deadlocks the resume frame.
         g_swapChainValid = false;
         g_skipNextSwapChainDrain = true;
+        // Command lists that straddle the suspend can render into drawables
+        // whose present was skipped; their completion fences may never fire.
+        // Give the first frames after resume a pass on the pacing fence.
+        g_resumeFenceGrace.store(NUM_FRAMES, std::memory_order_release);
         SuspendTrace("RT: resumed");
         g_traceSwapChain.store(true, std::memory_order_release);
 #endif
@@ -3029,6 +3034,17 @@ void Video::Present()
 
     if (g_commandListStates[g_frame])
     {
+        uint32_t grace = g_resumeFenceGrace.load(std::memory_order_acquire);
+        if (grace != 0)
+        {
+            // See the resume path: fences of lists that straddled a suspend may
+            // never signal, so skip the pacing wait for the first frames back.
+            g_resumeFenceGrace.store(grace - 1, std::memory_order_release);
+            g_commandListStates[g_frame] = false;
+            SuspendTrace("RT: pacing fence skipped (resume grace)");
+        }
+        else
+        {
         g_frameFenceProfiler.Begin();
         g_queue->waitForCommandFence(g_commandFences[g_frame].get());
         g_frameFenceProfiler.End();
@@ -3038,6 +3054,7 @@ void Video::Present()
         g_queryPools[g_frame]->queryResults();
         const uint64_t *frameTimestamps = g_queryPools[g_frame]->getResults();
         g_gpuFrameProfiler.Set(double(frameTimestamps[1] - frameTimestamps[0]) / 1000000.0);
+        }
     }
 
     g_dirtyStates = DirtyStates(true);
