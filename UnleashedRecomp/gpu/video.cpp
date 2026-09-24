@@ -1723,14 +1723,19 @@ static void BeginCommandList()
     commandList->setGraphicsDescriptorSet(g_samplerDescriptorSet.get(), 3);
 
     if (g_appSuspended.load(std::memory_order_relaxed)) {
-        SuspendTrace("RT: parked");
-        g_renderThreadParked.store(true, std::memory_order_release);
-        g_renderThreadParked.notify_all();
-        g_appSuspended.wait(true, std::memory_order_acquire);
-        g_renderThreadParked.store(false, std::memory_order_release);
-        // The swap chain generation is stale after a suspend; force a resize and reacquire.
+        // The guest render loop runs on the UIKit main thread on iOS, so blocking
+        // here would also block the runloop that delivers the foreground
+        // notification — the app could then never wake. Skip frames instead of
+        // parking; the swap chain stays invalid until the suspend flag clears.
         g_swapChainValid = false;
-        SuspendTrace("RT: woke");
+        if (!g_renderThreadParked.exchange(true, std::memory_order_acq_rel))
+            SuspendTrace("RT: skipping frames (suspended)");
+    }
+    else if (g_renderThreadParked.exchange(false, std::memory_order_acq_rel)) {
+        // First frame after resume: force a resize so the stale drawable
+        // generation is dropped and reacquired.
+        g_swapChainValid = false;
+        SuspendTrace("RT: resumed");
 #if TARGET_OS_IPHONE
         g_traceSwapChain.store(true, std::memory_order_release);
 #endif
@@ -2913,13 +2918,9 @@ void Video::HandleApplicationBackgroundState(bool isBackgrounded)
         g_appSuspended.store(true, std::memory_order_release);
         g_readyForCommands.store(false, std::memory_order_release);
 
-        // Wait (bounded) for the render thread to finish its in-flight frame and
-        // reach the park point: a frame past the park check would otherwise present
-        // after this handler runs and overwrite the swap chain invalidation below.
-        for (uint32_t i = 0; i < 1500 && !g_renderThreadParked.load(std::memory_order_acquire); i++)
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
-
-        SuspendTrace(g_renderThreadParked.load(std::memory_order_acquire) ? "BG: render parked" : "BG: park TIMEOUT");
+        // No handshake is needed: on iOS this handler, the guest render loop and
+        // every present run on the same (main) thread, so nothing can straddle
+        // the invalidation below.
 
         g_pendingWaitOnSwapChain = false;
         g_swapChainValid = false;
