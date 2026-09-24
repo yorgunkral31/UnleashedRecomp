@@ -767,6 +767,7 @@ static std::thread::id g_presentThreadId = std::this_thread::get_id();
 static std::atomic<bool> g_readyForCommands;
 static std::atomic<bool> g_appSuspended = false;
 static std::atomic<bool> g_renderThreadParked = false;
+static bool g_pendingWaitOnSwapChain = true;
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -1726,6 +1727,15 @@ static void BeginCommandList()
     if (g_appSuspended.load(std::memory_order_relaxed)) {
         g_swapChainValid = false;
 #if TARGET_OS_IPHONE
+        // This is a consistent frame boundary: the executor handshake for the
+        // frame completed earlier, so the fences WaitForGPU blocks on are real
+        // in-flight GPU work with bounded completion. Drain here — never in the
+        // lifecycle handler.
+        SuspendTrace("RT: draining GPU");
+        g_pendingWaitOnSwapChain = false;
+        g_dirtyStates.viewport = true;
+        Video::WaitForGPU();
+
         // The guest render loop runs on the UIKit main thread. While suspended,
         // main must neither keep running guest code (the background scene-update
         // transaction starves and the watchdog kills the app) nor block on a
@@ -2911,7 +2921,7 @@ static void ProcDrawImGui(const RenderCommand& cmd)
 // 3. Loading thread also waits on swap chain.
 // 4. Loading thread presents and quits.
 // 5. After the loading thread quits, application also presents.
-static bool g_pendingWaitOnSwapChain = true;
+// (g_pendingWaitOnSwapChain is declared near the suspend state at the top of the file.)
 
 void Video::HandleApplicationBackgroundState(bool isBackgrounded)
 {
@@ -2920,24 +2930,14 @@ void Video::HandleApplicationBackgroundState(bool isBackgrounded)
         SuspendTrace("BG: begin");
         g_appSuspended.store(true, std::memory_order_release);
 
-        // Deliberately leave g_readyForCommands alone: the guest thread waits on
-        // g_executedCommandList for the executor to drain its queued frame, so
-        // stopping the executor here strands the guest thread in an atomic wait
-        // it can never leave (and on iOS that thread is the UIKit main thread).
-        // Present itself is already gated by the swap chain invalidation below;
-        // the drained frames simply render nowhere, and the guest thread then
-        // idles in the runloop wait until the app returns to the foreground.
-
-        // No handshake is needed: on iOS this handler, the guest render loop and
-        // every present run on the same (main) thread, so nothing can straddle
-        // the invalidation below.
-
-        g_pendingWaitOnSwapChain = false;
-        g_swapChainValid = false;
-        g_dirtyStates.viewport = true;
-
-        Video::WaitForGPU();
-        SuspendTrace("BG: gpu idled");
+        // Nothing else may happen here. This runs inside a UIKit lifecycle
+        // callback on the main thread, and any unbounded wait (WaitForGPU
+        // blocks on a command fence the executor may not signal yet) hangs the
+        // callback until the scene-update watchdog kills the app. The actual
+        // drain and swap chain invalidation happen at the render loop's own
+        // suspend gate, which sits at a consistent frame boundary.
+        // g_readyForCommands is also deliberately left alone: stopping the
+        // executor would strand the guest thread on g_executedCommandList.
     } else {
         SuspendTrace("FG: notify");
         g_appSuspended.store(false, std::memory_order_release);
