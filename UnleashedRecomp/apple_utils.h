@@ -16,6 +16,11 @@ std::filesystem::path GetApplicationSupportDirectory();
 /// Returns absolute path suitable for temporary/cached data
 std::filesystem::path GetCachesDirectory();
 
+/// Register UIKit lifecycle observers that pause/resume the renderer.
+/// SDL's app events are not reliably delivered while the render thread is
+/// parked, so the foreground wake-up must come straight from UIKit. No-op on macOS.
+void RegisterLifecycleObservers();
+
 /// Open a URL in the system browser
 /// Returns true if the URL was opened successfully, false otherwise
 bool OpenBrowser(const char* url);

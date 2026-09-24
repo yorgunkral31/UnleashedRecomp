@@ -39,6 +39,7 @@ int Window_OnSDLEvent(void*, SDL_Event* event)
             break;
         }
 
+        case SDL_APP_WILLENTERFOREGROUND:
         case SDL_APP_DIDENTERFOREGROUND: {
             Video::HandleApplicationBackgroundState(false);
             break;

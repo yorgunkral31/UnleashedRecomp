@@ -214,6 +214,8 @@ int main(int argc, char *argv[])
     os::logger::Init();
 
 #if TARGET_OS_IOS
+    apple::RegisterLifecycleObservers();
+
     if (!apple::SupportsBCTextures()) {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, GameWindow::GetTitle(), Localise("System_iOS_UnsupportedGPU_BCTextures").c_str(), GameWindow::s_pWindow);
         std::_Exit(1);

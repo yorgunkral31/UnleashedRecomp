@@ -768,6 +768,33 @@ static std::atomic<bool> g_readyForCommands;
 static std::atomic<bool> g_appSuspended = false;
 static std::atomic<bool> g_renderThreadParked = false;
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+#if TARGET_OS_IPHONE
+static std::atomic<bool> g_traceSwapChain = false;
+
+// Temporary diagnostics for the suspend/resume investigation: appends to a file
+// in the app container so the trace survives without a debugger attached.
+static void SuspendTrace(const char *msg)
+{
+    static FILE *s_traceFile;
+    if (s_traceFile == nullptr)
+    {
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/Documents/suspend-trace.txt", getenv("HOME"));
+        s_traceFile = fopen(path, "a");
+    }
+    if (s_traceFile != nullptr)
+    {
+        fprintf(s_traceFile, "[%llu] %s\n", (unsigned long long)SDL_GetTicks64(), msg);
+        fflush(s_traceFile);
+    }
+}
+#else
+static void SuspendTrace(const char *) {}
+#endif
+
 PPC_FUNC_IMPL(__imp__sub_824ECA00);
 PPC_FUNC(sub_824ECA00)
 {
@@ -1592,6 +1619,10 @@ static void CheckSwapChain()
         g_backBuffer->framebuffers.clear();
         g_swapChainValid = g_swapChain->resize();
         g_needsResize = g_swapChainValid;
+#if TARGET_OS_IPHONE
+        if (g_traceSwapChain.load(std::memory_order_acquire))
+            SuspendTrace(g_swapChainValid ? "CSC: resize ok" : "CSC: resize FAILED");
+#endif
     }
 
     if (g_swapChainValid)
@@ -1599,6 +1630,14 @@ static void CheckSwapChain()
         g_swapChainAcquireProfiler.Begin();
         g_swapChainValid = g_swapChain->acquireTexture(g_acquireSemaphores[g_frame].get(), &g_backBufferIndex);
         g_swapChainAcquireProfiler.End();
+#if TARGET_OS_IPHONE
+        if (g_traceSwapChain.load(std::memory_order_acquire))
+        {
+            SuspendTrace(g_swapChainValid ? "CSC: acquire ok" : "CSC: acquire FAILED");
+            if (g_swapChainValid)
+                g_traceSwapChain.store(false, std::memory_order_release);
+        }
+#endif
     }
 
     if (g_needsResize)
@@ -1684,12 +1723,17 @@ static void BeginCommandList()
     commandList->setGraphicsDescriptorSet(g_samplerDescriptorSet.get(), 3);
 
     if (g_appSuspended.load(std::memory_order_relaxed)) {
+        SuspendTrace("RT: parked");
         g_renderThreadParked.store(true, std::memory_order_release);
         g_renderThreadParked.notify_all();
         g_appSuspended.wait(true, std::memory_order_acquire);
         g_renderThreadParked.store(false, std::memory_order_release);
         // The swap chain generation is stale after a suspend; force a resize and reacquire.
         g_swapChainValid = false;
+        SuspendTrace("RT: woke");
+#if TARGET_OS_IPHONE
+        g_traceSwapChain.store(true, std::memory_order_release);
+#endif
     }
 
     g_readyForCommands = true;
@@ -2865,21 +2909,26 @@ void Video::HandleApplicationBackgroundState(bool isBackgrounded)
 {
     if (isBackgrounded)
     {
+        SuspendTrace("BG: begin");
         g_appSuspended.store(true, std::memory_order_release);
         g_readyForCommands.store(false, std::memory_order_release);
 
         // Wait (bounded) for the render thread to finish its in-flight frame and
         // reach the park point: a frame past the park check would otherwise present
         // after this handler runs and overwrite the swap chain invalidation below.
-        for (uint32_t i = 0; i < 500 && !g_renderThreadParked.load(std::memory_order_acquire); i++)
+        for (uint32_t i = 0; i < 1500 && !g_renderThreadParked.load(std::memory_order_acquire); i++)
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+        SuspendTrace(g_renderThreadParked.load(std::memory_order_acquire) ? "BG: render parked" : "BG: park TIMEOUT");
 
         g_pendingWaitOnSwapChain = false;
         g_swapChainValid = false;
         g_dirtyStates.viewport = true;
 
         Video::WaitForGPU();
+        SuspendTrace("BG: gpu idled");
     } else {
+        SuspendTrace("FG: notify");
         g_appSuspended.store(false, std::memory_order_release);
         g_appSuspended.notify_all();
     }

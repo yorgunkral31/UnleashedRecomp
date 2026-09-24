@@ -9,6 +9,7 @@
 #endif
 
 #include "apple_utils.h"
+#include <gpu/video.h>
 
 namespace apple {
 
@@ -104,6 +105,32 @@ bool OpenBrowser(const char *url) {
   } @catch (NSException *exception) {
     return false;
   }
+}
+
+void RegisterLifecycleObservers() {
+#if TARGET_OS_IPHONE
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+    [center addObserverForName:UIApplicationDidEnterBackgroundNotification
+                        object:nil
+                         queue:[NSOperationQueue mainQueue]
+                    usingBlock:^(NSNotification *) {
+                      Video::HandleApplicationBackgroundState(true);
+                    }];
+    // Both notifications resume the renderer; the handler is idempotent and
+    // whichever arrives first wins.
+    for (NSNotificationName name in @[ UIApplicationWillEnterForegroundNotification,
+                                       UIApplicationDidBecomeActiveNotification ]) {
+      [center addObserverForName:name
+                          object:nil
+                           queue:[NSOperationQueue mainQueue]
+                      usingBlock:^(NSNotification *) {
+                        Video::HandleApplicationBackgroundState(false);
+                      }];
+    }
+  });
+#endif
 }
 
 bool SupportsBCTextures() {
