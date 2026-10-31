@@ -777,9 +777,11 @@ static std::atomic<uint32_t> g_resumeFenceGrace = 0;
 #if TARGET_OS_IPHONE
 #include <CoreFoundation/CoreFoundation.h>
 static std::atomic<bool> g_traceSwapChain = false;
+#endif
 
-// Temporary diagnostics for the suspend/resume investigation: appends to a file
-// in the app container so the trace survives without a debugger attached.
+#if TARGET_OS_IPHONE && defined(UNLEASHED_RECOMP_SUSPEND_TRACE)
+// Suspend/resume diagnostics, off unless built with UNLEASHED_RECOMP_SUSPEND_TRACE:
+// appends to a file in the app container so the trace survives without a debugger attached.
 static void SuspendTrace(const char *msg)
 {
     static FILE *s_traceFile;
@@ -1656,6 +1658,48 @@ static void CheckSwapChain()
 
 static void BeginCommandList()
 {
+    if (g_appSuspended.load(std::memory_order_relaxed)) {
+        g_swapChainValid = false;
+#if TARGET_OS_IPHONE
+        // This is a consistent frame boundary: the executor handshake for the
+        // frame completed earlier, so the fences WaitForGPU blocks on are real
+        // in-flight GPU work with bounded completion. Drain here — never in the
+        // lifecycle handler — and before this frame's command list is begun:
+        // WaitForGPU begins, ends and submits command list 0, so draining after
+        // the begin would close the frame's own list when g_frame is 0, and the
+        // frame would then record into a submitted list with no bound state.
+        SuspendTrace("RT: draining GPU");
+        g_pendingWaitOnSwapChain = false;
+        g_dirtyStates.viewport = true;
+        Video::WaitForGPU();
+
+        // The guest render loop runs on the UIKit main thread. While suspended,
+        // main must neither keep running guest code (the background scene-update
+        // transaction starves and the watchdog kills the app) nor block on a
+        // bare wait (the runloop starves and the wake-up notification can never
+        // be delivered). It has to sit inside the runloop, so the system can
+        // service its transactions, cleanly suspend the process, and deliver
+        // the foreground notification that clears the flag on resume.
+        SuspendTrace("RT: entering runloop wait");
+        while (g_appSuspended.load(std::memory_order_acquire))
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.25, true);
+        // First frame after resume: force a resize so the stale drawable
+        // generation is dropped and reacquired. The GPU was already drained on
+        // the way into the suspend and nothing touched it while idling, so the
+        // resize must not drain again: at this point a freshly queued command
+        // list may not have reached the executor yet, and waiting on its fence
+        // here deadlocks the resume frame.
+        g_swapChainValid = false;
+        g_skipNextSwapChainDrain = true;
+        // Command lists that straddle the suspend can render into drawables
+        // whose present was skipped; their completion fences may never fire.
+        // Give the first frames after resume a pass on the pacing fence.
+        g_resumeFenceGrace.store(NUM_FRAMES, std::memory_order_release);
+        SuspendTrace("RT: resumed");
+        g_traceSwapChain.store(true, std::memory_order_release);
+#endif
+    }
+
     g_renderTarget = g_backBuffer;
     g_depthStencil = nullptr;
     g_framebuffer = nullptr;
@@ -1728,45 +1772,6 @@ static void BeginCommandList()
     commandList->setGraphicsDescriptorSet(g_textureDescriptorSet.get(), 1);
     commandList->setGraphicsDescriptorSet(g_textureDescriptorSet.get(), 2);
     commandList->setGraphicsDescriptorSet(g_samplerDescriptorSet.get(), 3);
-
-    if (g_appSuspended.load(std::memory_order_relaxed)) {
-        g_swapChainValid = false;
-#if TARGET_OS_IPHONE
-        // This is a consistent frame boundary: the executor handshake for the
-        // frame completed earlier, so the fences WaitForGPU blocks on are real
-        // in-flight GPU work with bounded completion. Drain here — never in the
-        // lifecycle handler.
-        SuspendTrace("RT: draining GPU");
-        g_pendingWaitOnSwapChain = false;
-        g_dirtyStates.viewport = true;
-        Video::WaitForGPU();
-
-        // The guest render loop runs on the UIKit main thread. While suspended,
-        // main must neither keep running guest code (the background scene-update
-        // transaction starves and the watchdog kills the app) nor block on a
-        // bare wait (the runloop starves and the wake-up notification can never
-        // be delivered). It has to sit inside the runloop, so the system can
-        // service its transactions, cleanly suspend the process, and deliver
-        // the foreground notification that clears the flag on resume.
-        SuspendTrace("RT: entering runloop wait");
-        while (g_appSuspended.load(std::memory_order_acquire))
-            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.25, true);
-        // First frame after resume: force a resize so the stale drawable
-        // generation is dropped and reacquired. The GPU was already drained on
-        // the way into the suspend and nothing touched it while idling, so the
-        // resize must not drain again: at this point a freshly queued command
-        // list may not have reached the executor yet, and waiting on its fence
-        // here deadlocks the resume frame.
-        g_swapChainValid = false;
-        g_skipNextSwapChainDrain = true;
-        // Command lists that straddle the suspend can render into drawables
-        // whose present was skipped; their completion fences may never fire.
-        // Give the first frames after resume a pass on the pacing fence.
-        g_resumeFenceGrace.store(NUM_FRAMES, std::memory_order_release);
-        SuspendTrace("RT: resumed");
-        g_traceSwapChain.store(true, std::memory_order_release);
-#endif
-    }
 
     g_readyForCommands = true;
     g_readyForCommands.notify_one();
