@@ -38,6 +38,9 @@
 #ifdef __APPLE__
 #include "apple_utils.h"
 #include <CoreFoundation/CoreFoundation.h>
+#if TARGET_OS_IOS
+#include <ui/ios_scene.h>
+#endif
 #endif
 
 #if defined(_WIN32) && defined(UNLEASHED_RECOMP_D3D12)
@@ -214,6 +217,9 @@ int main(int argc, char *argv[])
     os::logger::Init();
 
 #if TARGET_OS_IOS
+    // Nothing can be shown on screen until iOS has connected the app's scene.
+    ios_scene::WaitForScene();
+
     apple::RegisterLifecycleObservers();
 
     if (!apple::SupportsBCTextures()) {

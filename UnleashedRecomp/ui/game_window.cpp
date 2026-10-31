@@ -7,6 +7,13 @@
 #include <sdl_listener.h>
 #include <SDL_syswm.h>
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#include "ios_scene.h"
+#endif
+#endif
+
 #if _WIN32
 #include <dwmapi.h>
 #include <shellscalingapi.h>
@@ -232,6 +239,9 @@ void GameWindow::Init(const char* sdlVideoDriver)
 #elif defined(__APPLE__)
 #if defined(SDL_VIDEO_DRIVER_UIKIT)
     s_renderWindow.window = info.info.uikit.window;
+
+    // The window only becomes visible once it's attached to the app's scene.
+    ios_scene::AttachWindow(s_renderWindow.window);
 #else
     s_renderWindow.window = info.info.cocoa.window;
 #endif
@@ -243,6 +253,11 @@ void GameWindow::Init(const char* sdlVideoDriver)
     SetTitleBarColour();
 
     SDL_ShowWindow(s_pWindow);
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    // Put the new Metal view on screen at the scene's landscape size now, rather than on the next touch.
+    ios_scene::FlushDisplayChanges();
+#endif
 }
 
 void GameWindow::Update()
@@ -263,6 +278,10 @@ void GameWindow::Update()
 
     if (g_needsResize)
         s_isChangingDisplay = false;
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    ios_scene::FlushDisplayChanges();
+#endif
 }
 
 SDL_Surface* GameWindow::GetIconSurface(void* pIconBmp, size_t iconSize)

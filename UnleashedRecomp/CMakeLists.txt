@@ -273,6 +273,10 @@ set(UNLEASHED_RECOMP_CXX_SOURCES
     ${UNLEASHED_RECOMP_THIRDPARTY_SOURCES}
 )
 
+if(IOS)
+    list(APPEND UNLEASHED_RECOMP_CXX_SOURCES "ui/ios_scene.mm")
+endif()
+
 include("version.cmake")
 
 set(VERSION_TXT "${PROJECT_SOURCE_DIR}/res/version.txt")
