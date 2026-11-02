@@ -5,14 +5,18 @@
 ---
 
 > [!IMPORTANT]
-> ## 🍎 Unofficial macOS & iOS Builds (Native Metal)
-> This fork publishes **unofficial Apple-platform builds** of Unleashed Recompiled using the **native Metal rendering backend** from [hedge-dev/UnleashedRecomp#1648](https://github.com/hedge-dev/UnleashedRecomp/pull/1648) by [@squidbus](https://github.com/squidbus) — no MoltenVK translation layer, Metal by default.
+> ## 🎮 Where to get Unleashed Recompiled for your platform
+> This fork publishes **unofficial macOS and iOS builds** using the **native Metal backend**. For every other platform, the table points to the project that actually makes that build, so the credit (and the bug reports) go to the right people.
 >
-> **[⬇️ macOS build (Apple Silicon)](https://github.com/yorgunkral31/UnleashedRecomp/releases/tag/metal-20260920)** — M1+, macOS 15+ recommended
+> | Platform | Build | Made by |
+> |---|---|---|
+> | 🪟 Windows | [Official release](https://github.com/hedge-dev/UnleashedRecomp/releases/latest) | [hedge-dev](https://github.com/hedge-dev/UnleashedRecomp) |
+> | 🐧 Linux | [Official release (Flatpak)](https://github.com/hedge-dev/UnleashedRecomp/releases/latest) | [hedge-dev](https://github.com/hedge-dev/UnleashedRecomp) |
+> | 🍎 macOS (Apple Silicon) | [**This fork's release**](https://github.com/yorgunkral31/UnleashedRecomp/releases/tag/metal-20260920) | Metal backend by [@squidbus](https://github.com/squidbus) ([#1648](https://github.com/hedge-dev/UnleashedRecomp/pull/1648)), built and published here |
+> | 📱 iOS (A17 Pro+) | [**This fork's release**](https://github.com/yorgunkral31/UnleashedRecomp/releases/tag/ios-20261031) (experimental IPA, up to 120 FPS, iOS 27 ready) | iOS port by [@Markos-Th09](https://github.com/Markos-Th09) ([#1767](https://github.com/hedge-dev/UnleashedRecomp/pull/1767)) plus my fixes on the [`ios` branch](https://github.com/yorgunkral31/UnleashedRecomp/tree/ios) |
+> | 🤖 Android | [SansNope/UnleashedRecomp-Android](https://github.com/SansNope/UnleashedRecomp-Android/releases/latest) (unofficial APK) | [@SansNope](https://github.com/SansNope) and contributors |
 >
-> **[📱 iOS build (experimental IPA for sideloading)](https://github.com/yorgunkral31/UnleashedRecomp/releases/tag/ios-20260921)** — iPhone 15 Pro / 16 series or newer (A17 Pro+), up to 120 FPS on ProMotion; based on the iOS port ([#1767](https://github.com/hedge-dev/UnleashedRecomp/pull/1767)) by [@Markos-Th09](https://github.com/Markos-Th09) plus this fork's fixes ([`ios` branch](https://github.com/yorgunkral31/UnleashedRecomp/tree/ios))
->
-> You must provide **your own legally dumped copy of the game** — no game files are included. Install notes are in each release's description. Upstream project: [hedge-dev/UnleashedRecomp](https://github.com/hedge-dev/UnleashedRecomp).
+> Every build needs **your own legally dumped copy of the game**; none of them include game files. Install notes are in each release's description. Upstream project: [hedge-dev/UnleashedRecomp](https://github.com/hedge-dev/UnleashedRecomp).
 
 ---
 
