@@ -184,7 +184,7 @@
                     "type": "FILEPATH"
                 },
                 "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": {
-                    "value": "${sourceDir}/toolchains/ios.toolchain.cmake",
+                    "value": "${sourceDir}/thirdparty/ios-cmake/ios.toolchain.cmake",
                     "type": "FILEPATH"
                 },
                 "VCPKG_TARGET_TRIPLET": {

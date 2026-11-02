@@ -26,7 +26,7 @@ struct Event final : KernelObject, HostObject<XKEVENT>
 {
     bool manualReset;
     std::atomic<bool> signaled;
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     std::mutex waitMutex;
     std::condition_variable waitCondition;
 #endif
@@ -59,7 +59,7 @@ struct Event final : KernelObject, HostObject<XKEVENT>
         }
         else if (timeout == INFINITE)
         {
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
             std::unique_lock lock(waitMutex);
             if (manualReset)
             {
@@ -105,7 +105,7 @@ struct Event final : KernelObject, HostObject<XKEVENT>
 
     bool Set()
     {
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
         bool previousState;
         {
             std::lock_guard lock(waitMutex);
@@ -130,7 +130,7 @@ struct Event final : KernelObject, HostObject<XKEVENT>
 
     bool Reset()
     {
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
         std::lock_guard lock(waitMutex);
 #endif
         return signaled.exchange(false, std::memory_order_acq_rel);
@@ -138,7 +138,7 @@ struct Event final : KernelObject, HostObject<XKEVENT>
 };
 
 static std::atomic<uint32_t> g_keSetEventGeneration;
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
 static std::mutex g_multipleEventWaitMutex;
 static std::condition_variable g_multipleEventWaitCondition;
 #endif
@@ -146,7 +146,7 @@ static std::condition_variable g_multipleEventWaitCondition;
 static void NotifyMultipleEventWaiters()
 {
     g_keSetEventGeneration.fetch_add(1, std::memory_order_release);
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     {
         // Synchronize with the predicate check performed by condition_variable::wait.
         std::lock_guard lock(g_multipleEventWaitMutex);
@@ -159,7 +159,7 @@ static void NotifyMultipleEventWaiters()
 
 static void WaitForMultipleEventGenerationChange(uint32_t generation)
 {
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     std::unique_lock lock(g_multipleEventWaitMutex);
     g_multipleEventWaitCondition.wait(lock, [&]
     {
@@ -174,7 +174,7 @@ struct Semaphore final : KernelObject, HostObject<XKSEMAPHORE>
 {
     std::atomic<uint32_t> count;
     uint32_t maximumCount;
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     std::mutex waitMutex;
     std::condition_variable waitCondition;
 #endif
@@ -204,7 +204,7 @@ struct Semaphore final : KernelObject, HostObject<XKSEMAPHORE>
         }
         else if (timeout == INFINITE)
         {
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
             std::unique_lock lock(waitMutex);
 #endif
             uint32_t currentCount;
@@ -218,7 +218,7 @@ struct Semaphore final : KernelObject, HostObject<XKSEMAPHORE>
                 }
                 else
                 {
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
                     waitCondition.wait(lock, [&]
                     {
                         return count.load(std::memory_order_relaxed) != 0;
@@ -240,7 +240,7 @@ struct Semaphore final : KernelObject, HostObject<XKSEMAPHORE>
 
     void Release(uint32_t releaseCount, uint32_t* previousCount)
     {
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
         std::lock_guard lock(waitMutex);
 #endif
         uint32_t currentCount = count.load(std::memory_order_relaxed);
@@ -259,7 +259,7 @@ struct Semaphore final : KernelObject, HostObject<XKSEMAPHORE>
         if (previousCount != nullptr)
             *previousCount = currentCount;
 
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
         waitCondition.notify_all();
 #else
         count.notify_all();
@@ -782,7 +782,7 @@ uint32_t KeSetAffinityThread(uint32_t Thread, uint32_t Affinity, be<uint32_t>* l
     return 0;
 }
 
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
 // libc++ implements atomic::wait with ulock on iOS. Keep ownership atomic, but
 // use a hashed condition-variable wait table so the iOS build can distinguish
 // a broken ownership protocol from an atomic-wait/ulock problem.
@@ -891,7 +891,7 @@ static void WakeCriticalSectionWaiters(XRTL_CRITICAL_SECTION* cs)
 
 static bool IsCriticalSectionAtomicStorageValid(const XRTL_CRITICAL_SECTION* cs)
 {
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     static std::once_flag backendLogFlag;
     std::call_once(backendLogFlag, []
     {
@@ -945,11 +945,11 @@ void RtlLeaveCriticalSection(XRTL_CRITICAL_SECTION* cs)
     if (cs->RecursionCount != 0)
         return;
 
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     const CriticalSectionOwnerDiagnostic ownerDiagnostic = RemoveCriticalSectionOwner(cs);
 #endif
     owningThread.store(0, std::memory_order_release);
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     WakeCriticalSectionWaiters(cs);
 
     const auto heldFor = std::chrono::steady_clock::now() - ownerDiagnostic.acquiredAt;
@@ -990,7 +990,7 @@ void RtlEnterCriticalSection(XRTL_CRITICAL_SECTION* cs)
            if (owningThread.compare_exchange_weak(currentOwner, thisThread, std::memory_order_acquire, std::memory_order_relaxed))
            {
                cs->RecursionCount = 1;
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
                RecordCriticalSectionOwner(cs, thisThread);
 #endif
 
@@ -1011,7 +1011,7 @@ void RtlEnterCriticalSection(XRTL_CRITICAL_SECTION* cs)
         }
 
         contended = true;
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
         WaitForCriticalSectionOwnerChange(cs, owningThread, currentOwner, thisThread);
 #else
         owningThread.wait(currentOwner, std::memory_order_relaxed);
@@ -1059,7 +1059,7 @@ uint32_t RtlInitializeCriticalSection(XRTL_CRITICAL_SECTION* cs)
     cs->LockCount = -1;
     cs->RecursionCount = 0;
     cs->OwningThread = 0;
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     RemoveCriticalSectionOwner(cs);
 #endif
 
@@ -1536,7 +1536,7 @@ bool RtlTryEnterCriticalSection(XRTL_CRITICAL_SECTION* cs)
         previousOwner, thisThread, std::memory_order_acquire, std::memory_order_relaxed))
     {
         cs->RecursionCount = 1;
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
         RecordCriticalSectionOwner(cs, thisThread);
 #endif
         return true;
@@ -1554,7 +1554,7 @@ void RtlInitializeCriticalSectionAndSpinCount(XRTL_CRITICAL_SECTION* cs, uint32_
     cs->LockCount = -1;
     cs->RecursionCount = 0;
     cs->OwningThread = 0;
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     RemoveCriticalSectionOwner(cs);
 #endif
 }

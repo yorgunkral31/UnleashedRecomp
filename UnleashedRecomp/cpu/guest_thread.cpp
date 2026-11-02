@@ -155,7 +155,7 @@ uint32_t GuestThreadHandle::GetThreadId() const
 
 void GuestThreadHandle::SetSuspended(bool value)
 {
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     {
         std::lock_guard lock(suspendMutex);
         suspended.store(value, std::memory_order_release);
@@ -171,7 +171,7 @@ void GuestThreadHandle::SetSuspended(bool value)
 
 void GuestThreadHandle::WaitWhileSuspended()
 {
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     std::unique_lock lock(suspendMutex);
     suspendCondition.wait(lock, [&]
     {
@@ -292,7 +292,7 @@ int GetThreadPriorityImpl(GuestThreadHandle* hThread)
 {
 #ifdef _WIN32
     return GetThreadPriority(hThread == GetKernelObject(CURRENT_THREAD_HANDLE) ? GetCurrentThread() : hThread->thread.native_handle());
-#else 
+#else
     return 0;
 #endif
 }

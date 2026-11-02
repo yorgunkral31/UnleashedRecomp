@@ -151,10 +151,8 @@ else()
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/host-tools/install
         -DUNLEASHED_RECOMP=ON
-        # XenosRecomp's CMakeLists does not consume the UNLEASHED_RECOMP cache
-        # variable, so the game-specific shader logic silently compiles out.
-        # Inject it as a compile flag until the option is wired up properly.
-        -DCMAKE_CXX_FLAGS=-DUNLEASHED_RECOMP
+        -DXENOS_RECOMP_METAL_SDK="iphoneos"
+        -DXENOS_RECOMP_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
 
         COMMAND
         ${CMAKE_COMMAND} --build "${HOST_XENOSRECOMP_BUILD_DIR}" --config ${CMAKE_BUILD_TYPE}

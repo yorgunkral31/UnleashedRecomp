@@ -6,7 +6,8 @@
 	url = https://github.com/redorav/ddspp.git
 [submodule "tools/XenosRecomp"]
 	path = tools/XenosRecomp
-	url = https://github.com/squidbus/XenosRecomp.git
+	url = https://github.com/Markos-Th09/XenosRecomp.git
+    branch = ios
 [submodule "UnleashedRecompResources"]
 	path = UnleashedRecompResources
 	url = https://github.com/hedge-dev/UnleashedRecompResources.git
@@ -30,7 +31,8 @@
 	url = https://github.com/Neargye/magic_enum.git
 [submodule "thirdparty/nativefiledialog-extended"]
 	path = thirdparty/nativefiledialog-extended
-	url = https://github.com/btzy/nativefiledialog-extended.git
+	url = https://github.com/Markos-Th09/nativefiledialog-extended.git
+    branch = ios
 [submodule "thirdparty/imgui"]
 	path = thirdparty/imgui
 	url = https://github.com/ocornut/imgui.git
@@ -58,3 +60,7 @@
 [submodule "thirdparty/plume"]
 	path = thirdparty/plume
 	url = https://github.com/yorgunkral31/plume.git
+	branch = ios-sync
+[submodule "thirdparty/ios-cmake"]
+	path = thirdparty/ios-cmake
+	url = https://github.com/leetal/ios-cmake.git

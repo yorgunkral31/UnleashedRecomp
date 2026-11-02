@@ -34,7 +34,7 @@ struct GuestThreadHandle : KernelObject
 {
     GuestThreadParams params;
     std::atomic<bool> suspended;
-#if defined(UNLEASHED_RECOMP_IOS_LAUNCHER)
+#if defined(UNLEASHED_RECOMP_IOS)
     std::mutex suspendMutex;
     std::condition_variable suspendCondition;
 #endif

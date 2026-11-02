@@ -28,6 +28,7 @@
 #include <ui/options_menu.h>
 #include <ui/game_window.h>
 #include <ui/black_bar.h>
+#include <ui/touch_controls.h>
 #include <patches/aspect_ratio_patches.h>
 #include <user/config.h>
 #include <sdl_listener.h>
@@ -337,6 +338,10 @@ static std::unique_ptr<RenderCommandList> g_commandLists[NUM_FRAMES];
 static std::unique_ptr<RenderCommandFence> g_commandFences[NUM_FRAMES];
 static std::unique_ptr<RenderQueryPool> g_queryPools[NUM_FRAMES];
 static bool g_commandListStates[NUM_FRAMES];
+
+static Mutex g_waitForGPUMutex;
+static std::unique_ptr<RenderCommandList> g_waitForGPUCommandList;
+static std::unique_ptr<RenderCommandFence> g_waitForGPUCommandFence;
 
 static Mutex g_copyMutex;
 static std::unique_ptr<RenderCommandQueue> g_copyQueue;
@@ -800,6 +805,7 @@ static void SuspendTrace(const char *msg)
 #else
 static void SuspendTrace(const char *) {}
 #endif
+
 
 PPC_FUNC_IMPL(__imp__sub_824ECA00);
 PPC_FUNC(sub_824ECA00)
@@ -1463,6 +1469,10 @@ static void CreateImGuiBackend()
     OptionsMenu::Init();
     InstallerWizard::Init();
 
+#ifdef UNLEASHED_RECOMP_IOS
+    TouchControls::Init();
+#endif
+
     ImGui_ImplSDL2_InitForOther(GameWindow::s_pWindow);
 
 #ifdef ENABLE_IM_FONT_ATLAS_SNAPSHOT
@@ -1664,10 +1674,9 @@ static void BeginCommandList()
         // This is a consistent frame boundary: the executor handshake for the
         // frame completed earlier, so the fences WaitForGPU blocks on are real
         // in-flight GPU work with bounded completion. Drain here — never in the
-        // lifecycle handler — and before this frame's command list is begun:
-        // WaitForGPU begins, ends and submits command list 0, so draining after
-        // the begin would close the frame's own list when g_frame is 0, and the
-        // frame would then record into a submitted list with no bound state.
+        // lifecycle handler — and before this frame's command list is begun,
+        // so the drain can never close or submit the list this frame is about
+        // to record into.
         SuspendTrace("RT: draining GPU");
         g_pendingWaitOnSwapChain = false;
         g_dirtyStates.viewport = true;
@@ -1804,6 +1813,13 @@ static void ApplyLowEndDefaults()
     }
 }
 
+#ifdef __APPLE__
+static void ApplyMetalHUDConfig()
+{
+    setenv("MTL_HUD_ENABLED", Config::ShowMetalHUD ? "1" : "0", 1);
+}
+#endif
+
 bool Video::CreateHostDevice(const char *sdlVideoDriver, bool graphicsApiRetry)
 {
     for (uint32_t i = 0; i < 16; i++)
@@ -1819,6 +1835,10 @@ bool Video::CreateHostDevice(const char *sdlVideoDriver, bool graphicsApiRetry)
     g_backend = (DetectWine() || Config::GraphicsAPI == EGraphicsAPI::Vulkan) ? Backend::VULKAN : Backend::D3D12;
 #elif defined(UNLEASHED_RECOMP_METAL)
     g_backend = Config::GraphicsAPI == EGraphicsAPI::Vulkan ? Backend::VULKAN : Backend::METAL;
+#endif
+
+#ifdef __APPLE__
+    ApplyMetalHUDConfig();
 #endif
 
     // Attempt to create the possible backends using a vector of function pointers. Whichever succeeds first will be the chosen API.
@@ -1989,6 +2009,9 @@ bool Video::CreateHostDevice(const char *sdlVideoDriver, bool graphicsApiRetry)
 
     for (auto& commandFence : g_commandFences)
         commandFence = g_device->createCommandFence();
+
+    g_waitForGPUCommandList = g_queue->createCommandList();
+    g_waitForGPUCommandFence = g_device->createCommandFence();
 
     for (auto& queryPool : g_queryPools)
         queryPool = g_device->createQueryPool(NUM_QUERIES);
@@ -2230,6 +2253,7 @@ static uint32_t g_waitForGPUCount = 0;
 
 void Video::WaitForGPU()
 {
+    std::lock_guard lock(g_waitForGPUMutex);
     g_waitForGPUCount++;
 
     // Wait for all queued frames to finish.
@@ -2243,10 +2267,10 @@ void Video::WaitForGPU()
     }
 
     // Execute an empty command list and wait for it to end to guarantee that any remaining presentation has finished.
-    g_commandLists[0]->begin();
-    g_commandLists[0]->end();
-    g_queue->executeCommandLists(g_commandLists[0].get(), g_commandFences[0].get());
-    g_queue->waitForCommandFence(g_commandFences[0].get());
+    g_waitForGPUCommandList->begin();
+    g_waitForGPUCommandList->end();
+    g_queue->executeCommandLists(g_waitForGPUCommandList.get(), g_waitForGPUCommandFence.get());
+    g_queue->waitForCommandFence(g_waitForGPUCommandFence.get());
 }
 
 static uint32_t CreateDevice(uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, be<uint32_t>* a6)
@@ -2772,6 +2796,10 @@ static void DrawImGui()
     Fader::Draw();
     BlackBar::Draw();
 
+#ifdef UNLEASHED_RECOMP_IOS
+    TouchControls::Draw(float(width), float(height), mousePosOffsetX, mousePosOffsetY);
+#endif
+
     assert(ImGui::GetBackgroundDrawList()->_ClipRectStack.Size == 1 && "Some clip rects were not removed from the stack!");
 
     DrawFPS();
@@ -2963,6 +2991,7 @@ void Video::HandleApplicationBackgroundState(bool isBackgrounded)
         g_appSuspended.notify_all();
     }
 }
+
 
 void Video::WaitOnSwapChain()
 {
